@@ -1,4 +1,4 @@
-CONFIG_PATH := hardware/qcom/media/conf_files/$(MSMSTEPPE)
+CONFIG_PATH := $(QCOM_MEDIA_ROOT)/conf_files/$(MSMSTEPPE)
 
 # Video feature flags
 
