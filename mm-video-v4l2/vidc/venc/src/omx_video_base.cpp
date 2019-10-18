@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2018, Linux Foundation. All rights reserved.
+Copyright (c) 2010-2019, Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -1748,6 +1748,17 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE* pParam =
                     (OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE*)paramData;
                 DEBUG_PRINT_LOW("get_parameter: OMX_IndexParamVideoAndroidImageGrid");
+                m_sParamAndroidImageGrid.bEnabled = OMX_TRUE;
+                m_sParamAndroidImageGrid.nTileWidth = DEFAULT_TILE_DIMENSION;
+                m_sParamAndroidImageGrid.nTileHeight = DEFAULT_TILE_DIMENSION;
+                m_sParamAndroidImageGrid.nGridRows =
+                    m_sInPortDef.format.video.nFrameHeight > 0 ?
+                    ((m_sInPortDef.format.video.nFrameHeight - 1) / DEFAULT_TILE_DIMENSION + 1) :
+                    DEFAULT_TILE_ROWS;
+                m_sParamAndroidImageGrid.nGridCols =
+                    m_sInPortDef.format.video.nFrameWidth > 0 ?
+                    ((m_sInPortDef.format.video.nFrameWidth - 1) / DEFAULT_TILE_DIMENSION + 1) :
+                    DEFAULT_TILE_COLS;
                 memcpy(pParam, &m_sParamAndroidImageGrid, sizeof(m_sParamAndroidImageGrid));
                 break;
             }
@@ -2147,6 +2158,14 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 QOMX_INDEXDOWNSCALAR *pDownScalarParam =
                     reinterpret_cast<QOMX_INDEXDOWNSCALAR *>(paramData);
                 memcpy(pDownScalarParam, &m_sParamDownScalar, sizeof(m_sParamDownScalar));
+                break;
+            }
+        case OMX_IndexParamVideoAndroidVp8Encoder:
+            {
+                VALIDATE_OMX_PARAM_DATA(paramData, OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE);
+                OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE *pVp8Params =
+                        reinterpret_cast<OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE*>(paramData);
+                memcpy(pVp8Params,&m_sParamVP8Encoder,sizeof(m_sParamVP8Encoder));
                 break;
             }
         case OMX_IndexParamConsumerUsageBits:
@@ -5116,6 +5135,9 @@ bool omx_video::alloc_map_ion_memory(int size, venc_ion *ion_info, int flag)
                 (unsigned int)ion_info->alloc_data.len,
                 ion_info->alloc_data.flags);
     }
+#ifdef HYPERVISOR
+    ion_info->alloc_data.flags &= (~ION_FLAG_CACHED);
+#endif
 
     rc = ion_alloc_fd(ion_info->dev_fd, ion_info->alloc_data.len, 0,
                       ion_info->alloc_data.heap_id_mask,

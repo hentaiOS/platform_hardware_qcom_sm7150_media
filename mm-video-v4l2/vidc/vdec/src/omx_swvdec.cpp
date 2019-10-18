@@ -220,13 +220,19 @@ OMX_ERRORTYPE omx_swvdec::component_init(OMX_STRING cmp_name)
                       "OMX.qti.video.decoder.wmvsw",
                       OMX_MAX_STRINGNAME_SIZE))))
     {
-        char property_value[PROPERTY_VALUE_MAX] = {0};
-        if(property_get("vendor.media.sm6150.version",property_value,0) &&
-                        (atoi(property_value) == 1))
+        char platform_name[PROP_VALUE_MAX] = {0};
+        char version[PROP_VALUE_MAX] = {0};
+        property_get("ro.board.platform", platform_name, "0");  //HW ID
+        if (!strcmp(platform_name, "sm6150"))
         {
-            OMX_SWVDEC_LOG_ERROR("VC1 decoder not supported on this target");
-            retval = OMX_ErrorInvalidComponentName;
-            goto component_init_exit;
+            if (property_get("vendor.media.target.version", version, "0") &&
+                    (atoi(version) == 0))
+            {
+                //Sku version, VC1 is disabled on this target
+                OMX_SWVDEC_LOG_ERROR("VC1 decoder not supported on this target");
+                retval = OMX_ErrorInvalidComponentName;
+                goto component_init_exit;
+            }
         }
 
         OMX_SWVDEC_LOG_LOW("video_decoder.vc1");
@@ -3537,8 +3543,9 @@ OMX_ERRORTYPE omx_swvdec::get_buffer_requirements_swvdec(
 
         m_port_ip.def.nBufferSize        = p_buffer_req->size;
         m_port_ip.def.nBufferCountMin    = p_buffer_req->mincount;
-        m_port_ip.def.nBufferCountActual = MAX(p_buffer_req->mincount,
-                                               OMX_SWVDEC_IP_BUFFER_COUNT_MIN);
+        m_port_ip.def.nBufferCountActual = MAX((MAX(p_buffer_req->mincount,
+                                               OMX_SWVDEC_IP_BUFFER_COUNT_MIN)),
+                                               m_port_ip.def.nBufferCountActual);
         m_port_ip.def.nBufferAlignment   = p_buffer_req->alignment;
 
         OMX_SWVDEC_LOG_HIGH("ip port: %d bytes x %d, %d-byte aligned",
