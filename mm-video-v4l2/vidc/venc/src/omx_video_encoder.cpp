@@ -257,8 +257,26 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
         secure_session = true;
     } else if (!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.tme",    \
                 OMX_MAX_STRINGNAME_SIZE)) {
-        strlcpy((char *)m_cRole, "video_encoder.tme", OMX_MAX_STRINGNAME_SIZE);
-        codec_type = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingTME;
+        char platform_name[PROP_VALUE_MAX] = {0};
+        char version[PROP_VALUE_MAX] = {0};
+        property_get("ro.board.platform", platform_name, "0");  //HW ID
+        if (!strcmp(platform_name, "sm6150")) {
+            if (property_get("vendor.media.target.version", version, "0") &&
+                (atoi(version) == 0)){
+                 //Sku version, TME is enabled on this target
+                strlcpy((char *)m_cRole, "video_encoder.tme", OMX_MAX_STRINGNAME_SIZE);
+                codec_type = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingTME;
+            }
+            else {
+                //TME is disabled for Moorea
+                DEBUG_PRINT_LOW("TME is not supported");
+                eRet = OMX_ErrorInvalidComponentName;
+            }
+        }
+        else {
+            DEBUG_PRINT_LOW("TME is not supported");
+            eRet = OMX_ErrorInvalidComponentName;
+        }
     } else {
         DEBUG_PRINT_ERROR("ERROR: Unknown Component");
         eRet = OMX_ErrorInvalidComponentName;
@@ -534,6 +552,10 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
     m_sParamVP8.nDCTPartitions = 0;
     m_sParamVP8.bErrorResilientMode = OMX_FALSE;
 
+    OMX_INIT_STRUCT(&m_sParamVP8Encoder,OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE);
+    m_sParamVP8Encoder.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
+    m_sParamVP8Encoder.nKeyFrameInterval = 30;
+
     // HEVC specific init
     OMX_INIT_STRUCT(&m_sParamHEVC, OMX_VIDEO_PARAM_HEVCTYPE);
     m_sParamHEVC.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
@@ -553,8 +575,8 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
     m_sParamAndroidImageGrid.bEnabled = OMX_FALSE;
     m_sParamAndroidImageGrid.nTileWidth = DEFAULT_TILE_DIMENSION;
     m_sParamAndroidImageGrid.nTileHeight = DEFAULT_TILE_DIMENSION;
-    m_sParamAndroidImageGrid.nGridRows = DEFAULT_TILE_COUNT;
-    m_sParamAndroidImageGrid.nGridCols = DEFAULT_TILE_COUNT;
+    m_sParamAndroidImageGrid.nGridRows = DEFAULT_TILE_ROWS;
+    m_sParamAndroidImageGrid.nGridCols = DEFAULT_TILE_COLS;
 
     OMX_INIT_STRUCT(&m_sParamLTRCount, QOMX_VIDEO_PARAM_LTRCOUNT_TYPE);
     m_sParamLTRCount.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
@@ -953,7 +975,21 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 memcpy(&m_sParamVP8,pParam, sizeof(struct OMX_VIDEO_PARAM_VP8TYPE));
                 break;
             }
-        case (OMX_INDEXTYPE)OMX_IndexParamVideoHevc:
+        case (OMX_INDEXTYPE)OMX_IndexParamVideoAndroidVp8Encoder:
+            {
+                VALIDATE_OMX_PARAM_DATA(paramData, OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE);
+                OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE* pParam = (OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE*)paramData;
+                OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE vp8_param;
+                DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoAndroidVp8Encoder");
+
+                memcpy(&vp8_param, pParam, sizeof( struct OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE));
+                if (handle->venc_set_param(&vp8_param, (OMX_INDEXTYPE)OMX_IndexParamVideoAndroidVp8Encoder) != true) {
+                    return OMX_ErrorUnsupportedSetting;
+                }
+                memcpy(&m_sParamVP8Encoder, &vp8_param, sizeof(struct OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE));
+                break;
+            }
+            case (OMX_INDEXTYPE)OMX_IndexParamVideoHevc:
             {
                 VALIDATE_OMX_PARAM_DATA(paramData, OMX_VIDEO_PARAM_HEVCTYPE);
                 OMX_VIDEO_PARAM_HEVCTYPE* pParam = (OMX_VIDEO_PARAM_HEVCTYPE*)paramData;
@@ -984,15 +1020,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             }
         case OMX_IndexParamVideoAndroidImageGrid:
             {
-                VALIDATE_OMX_PARAM_DATA(paramData, OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE);
-                DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoAndroidImageGrid");
-                OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE* pParam =
-                    (OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE*)paramData;
-                if (!handle->venc_set_param(paramData, (OMX_INDEXTYPE)OMX_IndexParamVideoAndroidImageGrid)) {
-                    DEBUG_PRINT_ERROR("ERROR: Request for setting image grid enable failed");
-                    return OMX_ErrorUnsupportedSetting;
-                }
-                memcpy(&m_sParamAndroidImageGrid, pParam, sizeof(m_sParamAndroidImageGrid));
+                DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoAndroidImageGrid. Ignore!");
                 break;
             }
         case OMX_IndexParamVideoProfileLevelCurrent:
